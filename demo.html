@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartPark Demo - Symulacja Parkowania</title>
+    <link rel="stylesheet" href="style.css"> 
+    <style>
+        /* Specyficzne style dla sekcji Demo */
+        :root {
+            --spot-free: #3CB371; /* Medium Sea Green */
+            --spot-occupied: #DC143C; /* Crimson Red */
+            --spot-hover: #FFD700; /* Gold */
+            /* Zapewniamy definicję kolorów dla spójności */
+            --color-dark: #1C2B3A; 
+            --color-primary: #007bff; 
+            --color-secondary: #6c757d;                     
+        }
+        
+        .demo-page {
+            padding: 80px 0;
+            min-height: 80vh;
+            text-align: center;
+        }
+        .stats-grid {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            padding: 20px 30px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            flex: 1;
+            max-width: 250px;
+            min-width: 180px;
+        }
+        .stat-card h4 {
+            color: var(--color-dark);
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--color-primary);
+            margin-top: 5px;
+        }
+        
+        /* Sekcja Wizualizacji Mapy */
+        .parking-map-container {
+            margin: 40px auto;
+            max-width: 900px;
+            background-color: #f0f0f0;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #parking-map {
+            display: grid;
+            /* Ustawia siatkę na 10 kolumn dla 100 miejsc (10x10) */
+            grid-template-columns: repeat(10, 1fr); 
+            gap: 5px;
+        }
+        
+        .parking-spot {
+            height: 50px;
+            line-height: 50px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: white;
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: default;
+            text-align: center;
+        }
+        
+        .spot-free {
+            background-color: var(--spot-free);
+        }
+        
+        .spot-occupied {
+            background-color: var(--spot-occupied);
+        }
+
+        .parking-spot:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px var(--spot-hover);
+            z-index: 5;
+        }
+
+        /* Tooltip dla szczegółów */
+        .spot-tooltip {
+            visibility: hidden;
+            background-color: var(--color-dark);
+            color: white;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 10;
+            bottom: 100%; /* Nad miejscem */
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none; 
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .spot-occupied:hover .spot-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .control-buttons {
+            margin: 20px 0 40px;
+        }
+        
+        .control-buttons button {
+            margin: 10px;
+        }
+        
+        .status-message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        /* KLASY ANIMACJI z main.js */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+
+        .fade-in.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="container">
+            <h1 class="logo"><a href="index.html" style="color: inherit; text-decoration: none;">SmartPark</a></h1>
+            <nav>
+                <ul>
+                    <li><a href="index.html" class="nav-link">Powrót do Startu</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="demo-page">
+        <div class="container">
+            <h2 class="fade-in">Panel Demo Systemu SmartPark</h2>
+            <p class="fade-in" style="transition-delay: 0.1s;">Interaktywna symulacja w czasie rzeczywistym (dane przechowywane w LocalStorage).</p>
+
+            <div class="stats-grid fade-in" style="transition-delay: 0.2s;">
+                <div class="stat-card">
+                    <h4>Całkowita Pojemność</h4>
+                    <p id="total-capacity" class="stat-value">...</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Wolne Miejsca</h4>
+                    <p id="available-spots" class="stat-value">...</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Zajęte Miejsca</h4>
+                    <p id="occupied-spots" class="stat-value">...</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Procent Zajętości</h4>
+                    <p id="occupancy-rate" class="stat-value">...</p>
+                </div>
+            </div>
+
+            <div class="parking-map-container fade-in" style="transition-delay: 0.4s;">
+                <h3>Wizualizacja Parkingu (10x10)</h3>
+                <div id="parking-map">
+                    </div>
+            </div>
+
+            <div class="control-buttons fade-in" style="transition-delay: 0.6s;">
+                <button id="occupy-btn" class="cta-button primary-btn large-btn">Symuluj Wjazd Samochodu</button>
+                <button id="release-btn" class="cta-button secondary-btn large-btn">Symuluj Wyjazd Samochodu</button>
+                <button id="reset-btn" class="cta-button secondary-btn large-btn" style="background-color: #dc3545; color: white; border: none;">Resetuj Dane Demo</button>
+            </div>
+            
+            <p id="status-message" class="status-message fade-in" style="transition-delay: 0.8s;"></p>
+
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 SmartPark Demo. Dane ładowane z LocalStorage.</p>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+    <script src="demo.js"></script>    
+    <script>
+        // Inicjalizacja Demo musi nastąpić po wczytaniu pliku demo.js
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof SmartParkDemo !== 'undefined') {
+                SmartParkDemo.initializeDemo();
+            } else {
+                console.error("Błąd: Obiekt SmartParkDemo nie został załadowany. Sprawdź ścieżkę do demo.js.");
+            }
+        });
+    </script>
+</body>
+</html>
